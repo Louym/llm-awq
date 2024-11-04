@@ -244,8 +244,8 @@ class QuantLlamaAttentionFused(nn.Module):
             xk = xk.view(bsz, seqlen, self.num_key_value_heads, self.head_dim)
             xv = xv.view(bsz, seqlen, self.num_key_value_heads, self.head_dim)
 
-            xq=awq_inference_engine.fused_rope_with_pos_forward_func(xq, freqs, True)
-            xk=awq_inference_engine.fused_rope_with_pos_forward_func(xk, freqs, True)
+            xq = awq_inference_engine.fused_rope_with_pos_forward_func(xq, freqs, True)
+            xk = awq_inference_engine.fused_rope_with_pos_forward_func(xk, freqs, True)
 
             self.cache_k = self.cache_k.to(xq)
             self.cache_v = self.cache_v.to(xq)
@@ -398,8 +398,8 @@ class QuantLlamaAttentionFusedFlash(nn.Module):
         xv = xqkv[:, :, -self.num_key_value_heads :]
 
         if seqlen > 1:
-            xq=awq_inference_engine.fused_rope_with_pos_forward_func(xq, freqs, True)
-            xk=awq_inference_engine.fused_rope_with_pos_forward_func(xk, freqs, True)
+            xq = awq_inference_engine.fused_rope_with_pos_forward_func(xq, freqs, True)
+            xk = awq_inference_engine.fused_rope_with_pos_forward_func(xk, freqs, True)
 
             self.cache_k = self.cache_k.to(xq)
             self.cache_v = self.cache_v.to(xq)

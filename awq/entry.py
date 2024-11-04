@@ -53,7 +53,9 @@ parser.add_argument("--no_zero_point", action="store_true", help="disable zero_p
 parser.add_argument("--q_backend", type=str, default="fake", choices=["fake", "real"])
 # save/load real quantized weights
 parser.add_argument("--dump_quant", type=str, default=None, help="save quantized model")
-parser.add_argument("--dump_fake", type=str, default=None, help="save fake-quantized model")
+parser.add_argument(
+    "--dump_fake", type=str, default=None, help="save fake-quantized model"
+)
 parser.add_argument("--load_quant", type=str, default=None, help="load quantized model")
 # apply/save/load awq
 parser.add_argument("--run_awq", action="store_true", help="perform awq search process")
@@ -69,7 +71,9 @@ parser.add_argument(
     help="quantizing vila 1.5",
 )
 args = parser.parse_args()
-vila_10_quant_mode = ("llava" in args.model_path.lower() or "vila" in args.model_path.lower()) and not args.vila_15
+vila_10_quant_mode = (
+    "llava" in args.model_path.lower() or "vila" in args.model_path.lower()
+) and not args.vila_15
 
 max_memory = [v.split(":") for v in (args.max_memory or [])]
 max_memory = {(int(k) if k.isdigit() else k): v for k, v in max_memory}
@@ -102,7 +106,7 @@ def build_model_and_enc(model_path):
             model_base=None,
             model_name=get_model_name_from_path(model_path),
             device="cpu",
-            **{"use_cache": False}
+            **{"use_cache": False},
         )
     else:
         config = AutoConfig.from_pretrained(model_path, trust_remote_code=True)

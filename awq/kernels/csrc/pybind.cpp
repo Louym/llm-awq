@@ -7,6 +7,7 @@
 #include "quantization_new/gemm/gemm_cuda.h"
 #include "quantization_new/gemv/gemv_cuda.h"
 #include "position_embedding/pos_encoding.h"
+#include "rope_new/fused_rope_with_pos.h"
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
 {
@@ -20,4 +21,5 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
           py::arg("q"), py::arg("k"), py::arg("v"), py::arg("k_cache"), py::arg("v_cache"),
           py::arg("length_per_sample_"), py::arg("alibi_slopes_"), py::arg("timestep"), py::arg("rotary_embedding_dim")=0,
           py::arg("rotary_base")=10000.0f, py::arg("rotary_scale")=1.0f, py::arg("neox_rotary_style")=true);
+    m.def("fused_rope_with_pos_forward_func", &fused_rope_with_pos_forward_func,"Fused rope forward function with B,S,D embedding");
 }

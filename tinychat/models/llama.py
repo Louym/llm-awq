@@ -46,11 +46,11 @@ def precompute_freqs_cis(
     return freqs_cis
 
 
-def precompute_freqs(dim: int, end: int, theta: float = 10000.0, scale: float = 1.0, device=None):
-    inv_freq = 1.0 / (
-        theta ** (torch.arange(0, dim, 2).float().to(device)/ dim)
-    )
-    seq = torch.arange(end, dtype=inv_freq.dtype,device=device)
+def precompute_freqs(
+    dim: int, end: int, theta: float = 10000.0, scale: float = 1.0, device=None
+):
+    inv_freq = 1.0 / (theta ** (torch.arange(0, dim, 2).float().to(device) / dim))
+    seq = torch.arange(end, dtype=inv_freq.dtype, device=device)
     freqs = torch.einsum("i , j -> i j", seq, inv_freq)
     freqs = freqs.reshape(freqs.shape[0], 1, 1, -1)
     return torch.cat((freqs, freqs), dim=-1)
