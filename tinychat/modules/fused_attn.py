@@ -217,16 +217,11 @@ class QuantLlamaAttentionFused(nn.Module):
             .half()
         )  # added to half
 
-        # dummy
-        self.rotary_emb = QuantLlamaRotaryEmbedding(
-            self.head_dim, max_position_embeddings=2048, device="cuda:0"
-        )
-
     def forward(
         self,
         x: torch.Tensor,
         start_pos: int,
-        freqs_cis: torch.Tensor,
+        freqs: torch.Tensor,
         mask: Optional[torch.Tensor],
         chunk_prefilling: bool,
     ):
@@ -249,7 +244,8 @@ class QuantLlamaAttentionFused(nn.Module):
             xk = xk.view(bsz, seqlen, self.num_key_value_heads, self.head_dim)
             xv = xv.view(bsz, seqlen, self.num_key_value_heads, self.head_dim)
 
-            xq, xk = apply_rotary_emb(xq, xk, freqs_cis=freqs_cis)
+            xq=awq_inference_engine.fused_rope_with_pos_forward_func(xq, freqs, True)
+            xk=awq_inference_engine.fused_rope_with_pos_forward_func(xk, freqs, True)
 
             self.cache_k = self.cache_k.to(xq)
             self.cache_v = self.cache_v.to(xq)
@@ -379,16 +375,11 @@ class QuantLlamaAttentionFusedFlash(nn.Module):
             .half()
         )  # added to half
 
-        # dummy
-        self.rotary_emb = QuantLlamaRotaryEmbedding(
-            self.head_dim, max_position_embeddings=2048, device="cuda:0"
-        )
-
     def forward(
         self,
         x: torch.Tensor,
         start_pos: int,
-        freqs_cis: torch.Tensor,
+        freqs: torch.Tensor,
         mask: Optional[torch.Tensor],
         chunk_prefilling: bool,
     ):
@@ -407,7 +398,8 @@ class QuantLlamaAttentionFusedFlash(nn.Module):
         xv = xqkv[:, :, -self.num_key_value_heads :]
 
         if seqlen > 1:
-            xq, xk = apply_rotary_emb(xq, xk, freqs_cis=freqs_cis)
+            xq=awq_inference_engine.fused_rope_with_pos_forward_func(xq, freqs, True)
+            xk=awq_inference_engine.fused_rope_with_pos_forward_func(xk, freqs, True)
 
             self.cache_k = self.cache_k.to(xq)
             self.cache_v = self.cache_v.to(xq)
@@ -476,7 +468,6 @@ class QuantLlamaAttentionFusedFlash(nn.Module):
                 True,
             )
             output = output.reshape(bsz, 1, -1)
-
         return self.o_proj(output)
 
 

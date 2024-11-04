@@ -37,6 +37,7 @@ setup(
                 "csrc/position_embedding/pos_encoding_kernels.cu",
                 "csrc/attention/ft_attention.cpp",
                 "csrc/attention/decoder_masked_multihead_attention.cu",
+                "csrc/rope_new/fused_rope_with_pos.cu",
             ],
             extra_compile_args=extra_compile_args,
         ),

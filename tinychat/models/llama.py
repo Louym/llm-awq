@@ -41,8 +41,19 @@ def precompute_freqs_cis(
     freqs = 1.0 / (theta ** (torch.arange(0, dim, 2)[: (dim // 2)].float() / dim))
     t = torch.arange(end, device=freqs.device)  # type: ignore
     freqs = torch.outer(t * scale, freqs).float()  # type: ignore
+
     freqs_cis = torch.polar(torch.ones_like(freqs), freqs)  # complex64
     return freqs_cis
+
+
+def precompute_freqs(dim: int, end: int, theta: float = 10000.0, scale: float = 1.0, device=None):
+    inv_freq = 1.0 / (
+        theta ** (torch.arange(0, dim, 2).float().to(device)/ dim)
+    )
+    seq = torch.arange(end, dtype=inv_freq.dtype,device=device)
+    freqs = torch.einsum("i , j -> i j", seq, inv_freq)
+    freqs = freqs.reshape(freqs.shape[0], 1, 1, -1)
+    return torch.cat((freqs, freqs), dim=-1)
 
 
 def reshape_for_broadcast(freqs_cis: torch.Tensor, x: torch.Tensor):
@@ -143,7 +154,6 @@ class LlamaAttentionFused(nn.Module):
             .cuda()
             .half()
         )  # added to half
-
         # dummy
         self.rotary_emb = LlamaRotaryEmbedding(
             self.head_dim, max_position_embeddings=2048, device="cuda:0"
@@ -309,7 +319,7 @@ class Transformer(nn.Module):
             rope_scale = 1.0
         else:
             rope_scale = 1.0 / rope_scale["factor"]
-        self.freqs_cis = precompute_freqs_cis(
+        self.freqs = precompute_freqs(
             self.params.hidden_size // self.params.num_attention_heads,
             self.params.max_position_embeddings * 2,
             self.params.rope_theta,
@@ -330,8 +340,8 @@ class Transformer(nn.Module):
         else:
             h = inputs_embeds
             seqlen = inputs_embeds.shape[1]
-        self.freqs_cis = self.freqs_cis.to(h.device)
-        freqs_cis = self.freqs_cis[start_pos : start_pos + seqlen]
+        self.freqs = self.freqs.to(h.device)
+        freqs = self.freqs[start_pos : start_pos + seqlen]
 
         mask = None
         if seqlen > 1:
@@ -343,7 +353,7 @@ class Transformer(nn.Module):
                 ).type_as(h)
                 mask = torch.cat((mask_history, mask), dim=-1)
         for layer in self.layers:
-            h = layer(h, start_pos, freqs_cis, mask, chunk_prefilling)
+            h = layer(h, start_pos, freqs, mask, chunk_prefilling)
         h = h[:, -1:, :]  # Only the last token is useful
         h = self.norm(h)
         return h
