@@ -41,7 +41,7 @@ class QuantSiglipEncoder(nn.Module):
         return_dict: Optional[bool] = None,
     ) -> Union[Tuple, BaseModelOutput]:
         # TODO Find why this code is necessary
-        torch.sum(inputs_embeds!=inputs_embeds)
+        # torch.sum(inputs_embeds!=inputs_embeds)
         bsz, seqlen, _ = inputs_embeds.shape
         if self.bsz != bsz or self.seqlen != seqlen:
             self.buffer.allocate_activation_buffer(bsz * seqlen)
@@ -110,7 +110,7 @@ class QuantSiglipMLP(nn.Module):
             buffer.quantized_scale_buffer,
             buffer.fc1_buffer,
         )
-        # print(torch.sum(torch.isinf(buffer.fc1_buffer)))
+        print("FC1_o: {}".format(torch.sum(torch.isnan(buffer.fc1_buffer))))
         # input=buffer.quantized_hidden_states_buffer*buffer.quantized_scale_buffer.reshape(-1,1)
         # input=input.reshape(15,1024,-1)
         # buffer.fc1_buffer=self.fc1(input)
@@ -224,6 +224,7 @@ class QuantSiglipEncoderLayer(nn.Module):
     ) -> Tuple[torch.FloatTensor]:
         # FP16 in FP16 out
         # Self Attention
+        torch.sum(torch.isnan(hidden_states))
         residual = hidden_states
         self.layer_norm1(
             hidden_states.reshape(-1, self.embed_dim),
@@ -239,6 +240,7 @@ class QuantSiglipEncoderLayer(nn.Module):
         )
         # Fully Connected
         residual = hidden_states
+        print(torch.sum(torch.isnan(hidden_states)))
 
         self.layer_norm2(
             hidden_states.reshape(-1, self.embed_dim),
