@@ -534,12 +534,12 @@ class LlavaMetaForCausalLM(ABC):
     def __truncate_sequence(
         self, inputs: List[torch.Tensor], labels: List[torch.Tensor]
     ) -> Tuple[torch.Tensor, torch.Tensor]:
-        if any(len(input) > self.tokenizer.model_max_length for input in inputs):
-            warnings.warn(
-                f"Truncating sequences to `model_max_length` ({self.tokenizer.model_max_length})."
-            )
-            inputs = [input[: self.tokenizer.model_max_length] for input in inputs]
-            labels = [label[: self.tokenizer.model_max_length] for label in labels]
+        # if any(len(input) > self.tokenizer.model_max_length for input in inputs):
+        #     warnings.warn(
+        #         f"Truncating sequences to `model_max_length` ({self.tokenizer.model_max_length})."
+        #     )
+        #     inputs = [input[: self.tokenizer.model_max_length] for input in inputs]
+        #     labels = [label[: self.tokenizer.model_max_length] for label in labels]
         return inputs, labels
 
     def __batchify_sequence(
@@ -902,8 +902,5 @@ class LlavaMetaForCausalLM(ABC):
                 input_ids, media, media_cfg, None, attention_mask=None
             )
         length = inputs_embeds.shape[1]
-        if quant_llm:
-            out = self.llm(None, start_pos, inputs_embeds, chunk_prefilling)
-        else:
-            out = self.llm.forwardfp16(None, start_pos, inputs_embeds, chunk_prefilling)
+        out = self.llm(None, start_pos, inputs_embeds, chunk_prefilling)
         return out, length

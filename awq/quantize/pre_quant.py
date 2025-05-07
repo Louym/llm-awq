@@ -42,6 +42,8 @@ def get_blocks(model):
         layers = model.gpt_neox.layers
     elif model.__class__.__name__ == "LlavaLlamaModel":
         layers = model.llm.model.layers
+    elif "PiZero" in model.__class__.__name__:
+        layers=model.joint_model.mixtures.vlm.layers+model.joint_model.mixtures.proprio.layers+model.joint_model.mixtures.action.layers
     else:
         raise NotImplementedError(type(model))
     return layers

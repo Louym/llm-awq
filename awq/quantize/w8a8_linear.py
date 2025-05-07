@@ -256,12 +256,13 @@ class FakeW8A8Linear(torch.nn.Module):
             fake_linear.bias.copy_(
                 linear.bias.detach().half().reshape(1, linear.out_features).contiguous()
             )
+            fake_linear.bias.data=fake_linear.bias.data.to(linear.weight.data)
         else:
             linear.bias = None
+        fake_linear.weight.data=fake_linear.weight.data.to(linear.weight.data)
         del linear, scale, weight
         torch.cuda.empty_cache()
         return fake_linear
-
 
 def fake_quant(model, wbit=8):
     for name, m in tqdm(
@@ -269,8 +270,9 @@ def fake_quant(model, wbit=8):
         desc="Fake quantizing",
         total=len(list(model.named_modules())),
     ):
-        if isinstance(m, torch.nn.Linear):
-            FQlinear = FakeW8A8Linear.from_linear(m, wbit)
-            del m
-            torch.cuda.empty_cache()
-            set_op_by_name(model, name, FQlinear)
+        with torch.no_grad():
+            if isinstance(m, torch.nn.Linear):
+                FQlinear = FakeW8A8Linear.from_linear(m, wbit)
+                del m
+                torch.cuda.empty_cache()
+                set_op_by_name(model, name, FQlinear)

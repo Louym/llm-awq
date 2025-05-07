@@ -128,7 +128,6 @@ def real_quantize_model_weight(model, w_bit, q_config, init_only=False):
     from .pre_quant import get_blocks, get_named_linears
 
     assert q_config["zero_point"], "We only support zero_point quantization now."
-
     layers = get_blocks(model)
     for i in tqdm(
         range(len(layers)),
@@ -139,6 +138,7 @@ def real_quantize_model_weight(model, w_bit, q_config, init_only=False):
         scale_activations(layer)
 
         for name, module in named_linears.items():
+            
             if init_only:
                 q_linear = WQLinear.from_linear(
                     module, w_bit, q_config["q_group_size"], True

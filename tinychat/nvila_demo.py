@@ -80,7 +80,8 @@ def main(args):
         make_quant_norm(model.llm)
         model.llm.cpu()
         model.llm.resize_token_embeddings(len(model.tokenizer))
-
+    print(model)
+    print(model.vision_tower.vision_tower.vision_model.encoder.layers[0].layer_norm1)
     if args.quant_VT or args.all:
         from tinychat.modules import QuantSiglipEncoder
 
@@ -191,7 +192,7 @@ def main(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--model_type", type=str, default="LLaMa", help="type of the model"
+        "--model_type", type=str, default="nvila", help="type of the model"
     )
     parser.add_argument(
         "--model-path", type=str, default="/data/llm/checkpoints/llava/llava-v1.5-7b"
