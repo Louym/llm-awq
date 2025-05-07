@@ -188,9 +188,8 @@ Time-To-First-Token (TTFT) of Llama-2-7B (Unit: Seconds):
 
 Time-To-First-Token (TTFT) NVILA models processing 8-image inputs (Unit: seconds):
 
-| model         | Precison |            | TTFT (s) |     |
+| Model         | Precison | VisonTower | LLM   | Total  |
 |:---------------:|:----------:|:------------:|:------------:|:------------:|
-|               |          | VisonTower | LLM   | Total  |
 | NVILA-lite-2B | FP16     | 0.074      | 0.024 | 0.097  |
 |               | TinyChat | 0.045      | 0.016 | 0.060  |
 |               | Speedup  | 1.65x      | 1.52x | 1.62x  |
@@ -214,9 +213,9 @@ Time-To-First-Token (TTFT) of Llama-3-8B (Unit: Seconds):
 
 Time-To-First-Token (TTFT) NVILA models processing 8-image inputs (Unit: seconds):
 
-| model         | Precison |    | TTFT (s) |        |
+
+|  Model      | Precison   | VisonTower | LLM   | Total  |
 |:---------------:|:----------:|:------------:|:------------:|:------------:|
-|               |          | VisonTower | LLM   | Total  |
 | NVILA-lite-2B | FP16     | 0.449      | 0.155 | 0.605  |
 |               | TinyChat | 0.419      | 0.145 | 0.564  |
 |               | Speedup  | 1.07x      | 1.07x | 1.07x  |
