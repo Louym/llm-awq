@@ -29,14 +29,14 @@ __device__ __forceinline__ T gelu_fast(const T &x) {
 
   
 
-// dequant int32 input, apply silu and mul, then per token quant to int8
+// apply gelu and mul, then per token quant to int8
 template <typename scale_type, bool use_per_token_quant>
 __global__ void gelu_and_quant_kernel(
     int8_t *__restrict__ out,          // [..., d]
-    half *__restrict__ input, // [..., d]
+    const scale_type *__restrict__ input, // [..., d]
     const int d,
-    scale_type * scale_out,                  // [num_tokens]
-    half *__restrict__ tmp = nullptr // [num_tokens, d]
+    scale_type *__restrict__ scale_out,                  // [num_tokens]
+    scale_type *__restrict__ tmp = nullptr // [num_tokens, d]
 ) {
   const int token_idx = blockIdx.x;
   const float max_value= 127.0f;
@@ -113,6 +113,110 @@ __global__ void silu_and_mul_kernel(
     out[token_idx_d + idx] = silu(x) * y;
   }
 }
+
+// apply silu and mul, then per token quant to int8
+template <typename scale_type, bool use_per_token_quant>
+__global__ void silu_and_mul_quant_kernel(
+    int8_t *__restrict__ out,          // [..., d]
+    const scale_type *__restrict__ input, // [..., 2 * d]
+    const int d,
+    scale_type *__restrict__ scale_out,                  // [num_tokens]
+    scale_type *__restrict__ tmp = nullptr // [num_tokens, d]
+) {
+  const int token_idx = blockIdx.x;
+  if constexpr (use_per_token_quant) {
+    float amax_val = 0.0f;
+    const half zero = 0.0f;
+
+    for (int idx = threadIdx.x; idx < d; idx += blockDim.x) {
+      const half x =
+          (half)__ldg(&input[token_idx * 2 * d + idx]);
+      const half y =
+          (half)__ldg(&input[token_idx * 2 * d + d + idx]);
+      half t = (half)(silu(x) * y);
+      tmp[token_idx * d + idx] = t;
+      t = t > zero ? t : -t;
+      if ((float)t > amax_val)
+        amax_val = (float)t;
+    }
+
+    __shared__ float s_amax;
+    const float block_amax_val = blockReduceMax(amax_val);
+    if (threadIdx.x == 0) {
+      s_amax = block_amax_val;
+      scale_out[token_idx] = (half)(block_amax_val / 127.0f);
+    }
+    __syncthreads();
+
+    float tmp_scale = 127.0f / s_amax;
+    for (int idx = threadIdx.x; idx < d; idx += blockDim.x) {
+      out[token_idx * d + idx] =
+          float_to_int8_rn((half)tmp_scale * tmp[token_idx * d + idx]);
+    }
+  } else {
+    for (int idx = threadIdx.x; idx < d; idx += blockDim.x) {
+      const float x =
+          (float)__ldg(&input[token_idx * 2 * d + idx]);
+      const float y =
+          (float)__ldg(&input[token_idx * 2 * d + d + idx]);
+      out[token_idx * d + idx] = float_to_int8_rn((half)silu(x) * (half)y / scale_out);
+    }
+  }
+}
+
+
+
+// apply gelu and mul, then per token quant to int8
+template <typename scale_type, bool use_per_token_quant>
+__global__ void gelu_and_mul_quant_kernel(
+    int8_t *__restrict__ out,          // [..., d]
+    const scale_type *__restrict__ input, // [..., 2 * d]
+    const int d,
+    scale_type *__restrict__ scale_out,                  // [num_tokens]
+    scale_type *__restrict__ tmp = nullptr // [num_tokens, d]
+) {
+  const int token_idx = blockIdx.x;
+  if constexpr (use_per_token_quant) {
+    float amax_val = 0.0f;
+    const half zero = 0.0f;
+
+    for (int idx = threadIdx.x; idx < d; idx += blockDim.x) {
+      const half x =
+          (half)__ldg(&input[token_idx * 2 * d + idx]);
+      const half y =
+          (half)__ldg(&input[token_idx * 2 * d + d + idx]);
+      half t = (half)(gelu_fast(x) * y);
+      tmp[token_idx * d + idx] = t;
+      t = t > zero ? t : -t;
+      if ((float)t > amax_val)
+        amax_val = (float)t;
+    }
+
+    __shared__ float s_amax;
+    const float block_amax_val = blockReduceMax(amax_val);
+    if (threadIdx.x == 0) {
+      s_amax = block_amax_val;
+      scale_out[token_idx] = (half)(block_amax_val / 127.0f);
+    }
+    __syncthreads();
+
+    float tmp_scale = 127.0f / s_amax;
+    for (int idx = threadIdx.x; idx < d; idx += blockDim.x) {
+      out[token_idx * d + idx] =
+          float_to_int8_rn((half)tmp_scale * tmp[token_idx * d + idx]);
+    }
+  } else {
+    for (int idx = threadIdx.x; idx < d; idx += blockDim.x) {
+      const float x =
+          (float)__ldg(&input[token_idx * 2 * d + idx]);
+      const float y =
+          (float)__ldg(&input[token_idx * 2 * d + d + idx]);
+      out[token_idx * d + idx] = float_to_int8_rn((half)gelu_fast(x) * (half)y / scale_out);
+    }
+  }
+}
+
+
 } // namespace vllm
 
 
@@ -138,4 +242,36 @@ torch::Tensor silu_and_mul(
         output.data_ptr<scalar_t>(), input.data_ptr<scalar_t>(), d);
   });
   return output;
+}
+
+void silu_and_mul_quant(
+  torch::Tensor &out,   // [..., d]
+  torch::Tensor &input, // [..., 2 * d]
+  torch::Tensor &scale_out, // [num_tokens]
+  torch::Tensor &tmp // [..., d]
+) {
+int64_t num_tokens = input.numel() / input.size(-1);
+int d = input.size(-1) / 2;
+dim3 grid(num_tokens);
+dim3 block(std::min(d, 128));
+const cudaStream_t stream = at::cuda::getCurrentCUDAStream();
+vllm::silu_and_mul_quant_kernel<half, true><<<grid, block, 0, stream>>>(
+    out.data_ptr<int8_t>(), reinterpret_cast<half *>(input.data_ptr<at::Half>()),
+     d, reinterpret_cast<half *>(scale_out.data_ptr<at::Half>()), reinterpret_cast<half *>(tmp.data_ptr<at::Half>()));
+}
+
+void gelu_and_mul_quant(
+  torch::Tensor &out,   // [..., d]
+  torch::Tensor &input, // [..., 2 * d]
+  torch::Tensor &scale_out, // [num_tokens]
+  torch::Tensor &tmp // [..., d]
+) {
+int64_t num_tokens = input.numel() / input.size(-1);
+int d = input.size(-1) / 2;
+dim3 grid(num_tokens);
+dim3 block(std::min(d, 128));
+const cudaStream_t stream = at::cuda::getCurrentCUDAStream();
+vllm::gelu_and_mul_quant_kernel<half, true><<<grid, block, 0, stream>>>(
+    out.data_ptr<int8_t>(), reinterpret_cast<half *>(input.data_ptr<at::Half>()),
+     d, reinterpret_cast<half *>(scale_out.data_ptr<at::Half>()), reinterpret_cast<half *>(tmp.data_ptr<at::Half>()));
 }

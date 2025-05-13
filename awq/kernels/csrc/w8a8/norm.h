@@ -12,10 +12,17 @@
 #include <torch/extension.h>
 #include <cuda_fp16.h>
 void layer_norm_general(torch::Tensor &out,    // [..., hidden_size]
-              torch::Tensor &input,  // [..., hidden_size]
-              torch::Tensor &weight, // [hidden_size]
-              torch::Tensor &bias, // [hidden_size]
-              torch::Tensor &scaling, // [tokens] or [1]
-              float epsilon,
-              bool use_per_token_quant);
+    torch::Tensor &input,  // [..., hidden_size]
+    torch::Tensor &weight, // [hidden_size]
+    torch::Tensor &bias, // [hidden_size]
+    torch::Tensor &scaling, // [tokens] or [1]
+    float epsilon,
+    bool use_per_token_quant);
+
+void rms_norm_general(torch::Tensor &out,    // [..., hidden_size]
+        torch::Tensor &input,  // [..., hidden_size]
+        torch::Tensor &weight, // [hidden_size]
+        torch::Tensor &scaling, // [tokens] or [1]
+        float epsilon,
+        bool use_per_token_quant);
 

@@ -45,7 +45,9 @@ class QuantSiglipEncoder(nn.Module):
         return_dict: Optional[bool] = None,
     ) -> Union[Tuple, BaseModelOutput]:
         inputs_embeds=inputs_embeds.contiguous()
+
         bsz, seqlen, _ = inputs_embeds.shape
+        
         if self.bsz != bsz or self.seqlen != seqlen:
             self.buffer.allocate_activation_buffer(bsz * seqlen)
             self.bsz = bsz
@@ -92,19 +94,11 @@ class QuantSiglipMLP(nn.Module):
         self.fc2 = W8A8OF16LinearDynamicInputScale.from_linear(
             siglipmlp.fc2, init_only=init_only
         )
-        self.invoke_quant = self.invoke_quant_mlp
-
-    def invoke_quant_mlp(self, buffer, actfn_output):
-        awq_inference_engine.invoke_quant(
-            buffer.quantized_mlp_act_buffer,
-            actfn_output,
-            buffer.quantized_scale_buffer,
-        )
 
     def forward(self, buffer: ActivationBuffer) -> torch.Tensor:
         # INT8 in, FP16 out
         self.fc1(
-            buffer.quantized_hidden_states_buffer,
+            buffer.quantized_input_buffer,
             buffer.quantized_scale_buffer,
             buffer.fc1_buffer,
         )
@@ -121,8 +115,6 @@ class QuantSiglipMLP(nn.Module):
             buffer.quantized_scale_buffer,
             buffer.in_out_fc2_act_buffer,
         )
-
-
 class QuantSiglipFlashAttention2(nn.Module):
     def __init__(
         self,
@@ -135,8 +127,8 @@ class QuantSiglipFlashAttention2(nn.Module):
         self.num_heads = module.num_heads
         self.head_dim = self.embed_dim // self.num_heads
 
-        self.qkv_proj = W8A8OF16LinearDynamicInputScale.from_qkv(
-            module.q_proj, module.k_proj, module.v_proj, init_only=init_only
+        self.qkv_proj = W8A8OF16LinearDynamicInputScale.from_linear(
+            [module.q_proj, module.k_proj, module.v_proj], init_only=init_only
         )
         self.out_proj = W8A8OF16LinearDynamicInputScale.from_linear(
             module.out_proj, init_only=init_only
@@ -156,7 +148,7 @@ class QuantSiglipFlashAttention2(nn.Module):
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[Tuple[torch.Tensor]]]:
         # qkv
         self.qkv_proj(
-            buffer.quantized_hidden_states_buffer,
+            buffer.quantized_input_buffer,
             buffer.quantized_scale_buffer,
             buffer.qkv_proj_act_buffer,
         )
@@ -218,7 +210,7 @@ class QuantSiglipEncoderLayer(nn.Module):
         residual = hidden_states
         self.layer_norm1(
             hidden_states.reshape(-1, self.embed_dim),
-            buffer.quantized_hidden_states_buffer,
+            buffer.quantized_input_buffer,
             buffer.quantized_scale_buffer,
         )
         # INT8 -> FP16
@@ -231,7 +223,7 @@ class QuantSiglipEncoderLayer(nn.Module):
         # FP16 in int8 out, layernorm & quantization
         self.layer_norm2(
             hidden_states.reshape(-1, self.embed_dim),
-            buffer.quantized_hidden_states_buffer,
+            buffer.quantized_input_buffer,
             buffer.quantized_scale_buffer,
         )
         # INT8 -> FP16
