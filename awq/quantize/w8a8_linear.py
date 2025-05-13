@@ -125,9 +125,17 @@ class W8A8OF16LinearDynamicInputScale(W8A8OF16LinearStaticScale):
                 assert 0, "Not implemented"
                 x = x.view(-1, x_shape[-1])
             # If use awq_inference_engine.w8a8_gemm_forward_cuda
+            for tensor in (x, self.weight, self.dequant_scale):
+                print(torch.sum(torch.isnan(tensor)))
+                print(torch.sum(torch.isinf(tensor)))
+                print(tensor.device)
+                print(tensor.is_contiguous())
             awq_inference_engine.w8a8_gemm_forward_cuda(
                 x, self.weight, self.dequant_scale, input_scale, output_buffer
             )
+            for tensor in (input_scale, output_buffer):
+                print(tensor.shape)
+                torch.sum(tensor)
             if len(x.shape) > 2:
                 assert 0, "Not implemented 2"
                 output_buffer = output_buffer.view(*x_shape[:-1], -1)
@@ -139,77 +147,54 @@ class W8A8OF16LinearDynamicInputScale(W8A8OF16LinearStaticScale):
     @classmethod
     def from_linear(
         cls,
-        linear,
+        linears,
         init_only=False,
         s1_scale=None,
         fc1=False,
     ):
+        if not isinstance(linears,list):
+            linears=[linears]
+        in_features=linears[0].in_features
+        out_features=0
+        weight=[]
+        if linears[0].bias is not None:
+            bias=[]
+        else:
+            bias=None
+        for linear in linears:
+            out_features+=linear.out_features
+            weight.append(linear.weight.data)
+            if bias is not None:
+                bias.append(linear.bias.data)
+        weight = torch.cat(weight, dim=0).contiguous()
+        if bias is not None:
+            bias = torch.cat(bias, dim=0).contiguous()
         q_linear = cls(
-            linear.in_features,
-            linear.out_features,
-            linear.bias is not None,
+            in_features,
+            out_features,
+            bias is not None,
         )
         if init_only:  # just prepare for loading sd
             return q_linear
         if s1_scale is None:
-            s1_scale, _ = torch.max(abs(linear.weight.data), dim=-1, keepdim=True)
+            s1_scale, _ = torch.max(abs(weight), dim=-1, keepdim=True)
             s1_scale = s1_scale.clamp_(min=1e-5).div_(127)
 
-        if linear.bias is not None:
-            q_linear.bias = linear.bias.clone().half().contiguous().cuda()
+        if bias is not None:
+            q_linear.bias = bias.clone().half().contiguous().cuda()
         ## Quantize the weights
         # ---- Quantize the weights to int8 ---- #
-        linear_weight = linear.weight.data  # OC, IC
-        linear_weight = linear_weight.div_(s1_scale.to(linear_weight.device))
-        linear_weight = linear_weight.round_().to(torch.int8)
+        # OC, IC
+        weight = weight.div_(s1_scale)
+        weight = weight.round_().to(torch.int8)
             
-        q_linear.weight.data[:, :] = linear_weight.half().contiguous().cuda()
+        q_linear.weight.data[:, :] = weight.half().contiguous().cuda()
 
         # ---- Pack the scales ---- #
         q_linear.dequant_scale.data[:] = (
             s1_scale.reshape(-1).half().contiguous().cuda()
         )
         return q_linear.cuda()
-
-    @classmethod
-    def from_qkv(
-        cls,
-        q,
-        k,
-        v,
-        init_only=False,
-        s1_scale=None,
-    ):
-        q_linear = cls(
-            q.in_features,
-            q.out_features + k.out_features + v.out_features,
-            q.bias is not None,
-        )
-        if init_only:  # just prepare for loading sd
-            return q_linear
-        weight = torch.cat([q.weight.data, k.weight.data, v.weight.data], dim=0)
-
-        if s1_scale is None:
-            s1_scale, _ = torch.max(abs(weight), dim=-1, keepdim=True)
-            s1_scale = s1_scale.clamp_(min=1e-5).div_(127)
-
-        if q.bias is not None:
-            bias = torch.cat([q.bias, k.bias, v.bias], dim=0)
-            q_linear.bias = bias.clone().half().contiguous().cuda()
-        # ---- Quantize the weights to int8 ---- #
-        weight = weight.div_(s1_scale.to(weight.device))
-        weight = weight.round_().to(torch.int8)
-
-        q_linear.weight.data[:, :] = weight.contiguous().cuda()
-
-        # ---- Pack the scales ---- #
-        q_linear.dequant_scale.data[:] = (
-            s1_scale.reshape(q.out_features + k.out_features + v.out_features)
-            .half()
-            .contiguous().cuda()
-        )
-        return q_linear.cuda()
-
 
 class FakeW8A8Linear(torch.nn.Module):
     def __init__(
