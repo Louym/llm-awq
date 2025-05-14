@@ -62,7 +62,6 @@ class QuantMixture(nn.Module):
         end=position_ids_all["action"][0,-1]
         freqs=self.freqs[start:end]
         for i, encoder_layer in enumerate(self.layers):
-            print(i)
             hidden_states = encoder_layer(
                 hidden_states, self.buffer, freqs, attention_mask, kv_caches["vlm"].get(i), kv_caches["proprio"].get(i), bsz, seqlen
             )

@@ -125,17 +125,9 @@ class W8A8OF16LinearDynamicInputScale(W8A8OF16LinearStaticScale):
                 assert 0, "Not implemented"
                 x = x.view(-1, x_shape[-1])
             # If use awq_inference_engine.w8a8_gemm_forward_cuda
-            for tensor in (x, self.weight, self.dequant_scale):
-                print(torch.sum(torch.isnan(tensor)))
-                print(torch.sum(torch.isinf(tensor)))
-                print(tensor.device)
-                print(tensor.is_contiguous())
             awq_inference_engine.w8a8_gemm_forward_cuda(
                 x, self.weight, self.dequant_scale, input_scale, output_buffer
             )
-            for tensor in (input_scale, output_buffer):
-                print(tensor.shape)
-                torch.sum(tensor)
             if len(x.shape) > 2:
                 assert 0, "Not implemented 2"
                 output_buffer = output_buffer.view(*x_shape[:-1], -1)
