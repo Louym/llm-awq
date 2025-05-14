@@ -171,7 +171,7 @@ class QuantSiglipFlashAttention2(nn.Module):
 
 
 class QuantSiglipEncoderLayer(nn.Module):
-    def __init__(self, module: SiglipEncoderLayer):
+    def __init__(self, module):
         super().__init__()
         self.embed_dim = module.embed_dim
         self.self_attn = QuantSiglipFlashAttention2(module.self_attn)
