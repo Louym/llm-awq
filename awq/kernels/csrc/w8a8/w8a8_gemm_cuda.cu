@@ -612,10 +612,10 @@ void w8a8_gemm_fuse_bias_forward_cuda(torch::Tensor _in_feats,
     constexpr int CTA_M = 128;
     constexpr int CTA_N = 128;
     constexpr int CTA_K = 64;
-    constexpr int WARP_M = 64;
+    constexpr int WARP_M = 128;
     constexpr int WARP_N = 32;
     constexpr int WARP_K = 64;
-    constexpr int STAGES = 6;
+    constexpr int STAGES = 3;
     KERNEL_LAUNCH_CODE_FUSE_BIAS
   }
   else 
@@ -624,7 +624,7 @@ void w8a8_gemm_fuse_bias_forward_cuda(torch::Tensor _in_feats,
     constexpr int CTA_N = 64;
     constexpr int CTA_K = 64;
     constexpr int WARP_M = 32;
-    constexpr int WARP_N = 16;
+    constexpr int WARP_N = 64;
     constexpr int WARP_K = 64;
     constexpr int STAGES = 6;
     KERNEL_LAUNCH_CODE_FUSE_BIAS

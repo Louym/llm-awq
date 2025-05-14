@@ -61,7 +61,7 @@ __global__ void quant_kernel(const T *__restrict__ input,
 
   if constexpr (use_per_token_quant) {
     float amax_val = 0.0f;
-    const float zero = 0.0f;
+    const float zero = 0.0001f;
 
     for (int i = tid; i < hidden_size; i += blockDim.x) {
       float val = (float)input[token_idx * hidden_size + i];
