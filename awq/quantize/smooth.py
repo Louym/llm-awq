@@ -2,11 +2,14 @@
 
 
 import torch.nn as nn
-import llava
-from llava.media import Image, Video
-from llava.utils.media import extract_media
-from llava.constants import DEFAULT_IMAGE_TOKEN
-from llava.mm_utils import process_image, process_images
+try:
+    import llava
+    from llava.media import Image, Video
+    from llava.utils.media import extract_media
+    from llava.constants import DEFAULT_IMAGE_TOKEN
+    from llava.mm_utils import process_image, process_images
+except:
+    pass
 import torch
 from collections import defaultdict
 from functools import partial
