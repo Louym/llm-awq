@@ -151,20 +151,14 @@ class QuantMixtureMLP(nn.Module):
 
     def forward(self, buffer: ActivationBuffer) -> torch.Tensor:
         # INT8 in, FP16 out
-        torch.sum(buffer.quantized_input_buffer)
-        torch.sum(buffer.quantized_scale_buffer)
         self.gateup_proj(
             buffer.quantized_input_buffer,
             buffer.quantized_scale_buffer,
             buffer.gateup_buffer,
         )
-        torch.sum(buffer.gateup_buffer)################
         #FP16 in, INT8 out
         awq_inference_engine.gelu_and_mul_quant(buffer.quantized_mlp_act_buffer, buffer.gateup_buffer, buffer.quantized_scale_buffer, buffer.tmp)
         # INT8 in, FP16 out
-        torch.sum(buffer.quantized_mlp_act_buffer)
-        torch.sum(buffer.quantized_scale_buffer)
-        torch.sum(buffer.in_out_fc2_act_buffer)
         self.down_proj(
             buffer.quantized_mlp_act_buffer,
             buffer.quantized_scale_buffer,
@@ -252,7 +246,6 @@ class QuantMixtureEncoderLayer(nn.Module):
         )
         # Fully Connected
         residual = hidden_states
-        torch.sum(hidden_states)
         # FP16 in int8 out, layernorm & quantization
         self.post_attention_layernorm(
             hidden_states.reshape(-1, self.embed_dim),
