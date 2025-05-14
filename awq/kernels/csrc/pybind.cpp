@@ -10,7 +10,7 @@
 #include "rope_new/fused_rope_with_pos.h"
 #include "w8a8/w8a8_gemm_cuda.h"
 #include "w8a8/quantization.h"
-#include "w8a8/layernorm.h"
+#include "w8a8/norm.h"
 #include "w8a8/act.h"
 
 
