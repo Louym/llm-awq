@@ -135,6 +135,39 @@ class W8A8OF16LinearDynamicInputScale(W8A8OF16LinearStaticScale):
     def forward(self, input_, input_scale, output_buffer):
         # Matrix multiply.
         self.apply_weights(input_, input_scale, output_buffer, self.bias)
+        # Check buffer:
+        # assert input_.shape[-1]==self.in_features
+        # assert input_.shape[0]==input_scale.shape[0]
+        # assert output_buffer.shape[-1]==self.out_features
+        # assert self.weight.shape[0]==self.out_features
+        # assert self.weight.shape[-1]==self.in_features
+        # assert self.dequant_scale.shape[0]==self.weight.shape[0]
+        
+        
+        # assert input_.dtype==torch.int8
+        # assert self.weight.dtype==torch.int8
+        # assert input_scale.dtype==torch.half
+        # assert input_scale.dtype==torch.half
+        # assert output_buffer.dtype==torch.half
+        # assert self.dequant_scale.dtype==torch.half
+        
+        # for i, tensor in enumerate([input_, input_scale, output_buffer, self.weight, self.dequant_scale]):
+        #     assert tensor.is_contiguous(), str(i)+" not continuous!"
+        #     assert str(tensor.device)=="cuda:0", str(i)+" on "+str(tensor.device)+"!"
+        #     assert not torch.isnan(tensor).any(), str(i)+": {} Nan!".format(torch.isnan(tensor).sum())
+        #     assert not torch.isinf(tensor).any(), str(i)+": {} Inf!".format(torch.isinf(tensor).sum())
+        # try:
+        #     for tensor in (input_, input_scale, output_buffer):
+        #         if torch.sum(torch.isnan(tensor)) or torch.sum(torch.isinf(tensor)):
+        #             print(
+        #                 f"Nan: {torch.sum(torch.isnan(tensor))}, Inf: {torch.sum(torch.isinf(tensor))}, {tensor.shape}, {tensor.device}, {tensor.dtype}, {tensor.is_contiguous()}")
+        # except:
+        #     for tensor in (input_, input_scale, output_buffer, self.bias):
+        #         if tensor is not None:
+        #             print(
+        #                 f"{tensor.shape}, {tensor.device}, {tensor.dtype}, {tensor.is_contiguous()}")
+        #     torch.sum(output_buffer)
+        #     exit()
 
     @classmethod
     def from_linear(
@@ -173,6 +206,10 @@ class W8A8OF16LinearDynamicInputScale(W8A8OF16LinearStaticScale):
             s1_scale = s1_scale.clamp_(min=1e-5).div_(127)
 
         if bias is not None:
+            if bias.shape[-1]%128 != 0:
+                bias=[bias, torch.zeros(128-(bias.shape[-1]%128)).to(bias)]
+                bias = torch.cat(bias, dim=0).contiguous()
+                print(f"Repacking bias to {bias.shape}")
             q_linear.bias = bias.clone().half().contiguous().cuda()
         ## Quantize the weights
         # ---- Quantize the weights to int8 ---- #

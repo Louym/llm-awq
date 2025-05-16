@@ -3,12 +3,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from awq.quantize import W8A8OF16LinearDynamicInputScale
-# from llava.model.multimodal_encoder.siglip.modeling_siglip import (
-#     SiglipMLP,
-#     SiglipEncoder,
-#     SiglipAttention,
-#     SiglipEncoderLayer,
-# )
 from tinychat.utils.input_metadata import ActivationBuffer
 from transformers.modeling_outputs import BaseModelOutput
 from typing import Optional, Tuple, Union

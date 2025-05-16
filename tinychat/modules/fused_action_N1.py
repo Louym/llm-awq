@@ -11,17 +11,6 @@ import math
 CLIP_RANGE = 5
 import awq_inference_engine
 
-
-def precompute_freqs(
-    dim: int, end: int, theta: float = 10000.0, scale: float = 1.0, device=None
-):
-    inv_freq = 1.0 / (theta ** (torch.arange(0, dim, 2).float().to(device) / dim))
-    seq = torch.arange(end, dtype=inv_freq.dtype, device=device)
-    freqs = torch.einsum("i , j -> i j", seq, inv_freq)
-    freqs = freqs.reshape(freqs.shape[0], 1, 1, -1)
-    return torch.cat((freqs, freqs), dim=-1)
-
-
 class QuantMixture(nn.Module):
     def __init__(self, module:nn.Module, bsz=1, seqlen=4):
         super().__init__()
