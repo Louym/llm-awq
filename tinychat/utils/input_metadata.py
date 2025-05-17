@@ -26,7 +26,7 @@ class ActivationBuffer:
         self.model_dtype = model.layers[0].self_attn.k_proj.weight.dtype
         self.device = "cuda"
         assert self.model_class in [
-            "SiglipEncoder", "Mixture"
+            "SiglipEncoder", "Mixture", "LlamaModel"
         ], f"model_class: {self.model_class} is currently not supported."
         assert (
             self.model_dtype == torch.float16
@@ -44,7 +44,7 @@ class ActivationBuffer:
     def allocate_activation_buffer(self, batched_seq_len):
         if self.model_class == "SiglipEncoder":
             self.__allocate_activation_buffer_siglip(batched_seq_len)
-        elif "mixture" in str(self.model_class).lower():
+        elif "mixture" in str(self.model_class).lower() or "llama" in str(self.model_class).lower():
             self.__allocate_activation_buffer_llama(batched_seq_len)
         else:
             raise NotImplementedError(
