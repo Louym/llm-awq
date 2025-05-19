@@ -38,6 +38,7 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
         "Apply RMS Normalization to the input tensor (TRTLLM kernel) and quantize the tensor into 8 bits.");
     m.def("silu_and_mul", &silu_and_mul, "Activation function.");
     m.def("gelu_and_quant",&gelu_and_quant, "Apply gelu act and quant output");
+    m.def("silu_and_quant",&silu_and_quant, "Apply silu act and quant output");
     m.def("silu_and_mul_quant",&silu_and_mul_quant, "Apply silu act, mul and quant output");
     m.def("gelu_and_mul_quant",&gelu_and_mul_quant, "Apply gelu , mul and quant output");
 }

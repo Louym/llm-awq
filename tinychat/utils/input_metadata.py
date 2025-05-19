@@ -26,7 +26,7 @@ class ActivationBuffer:
         self.model_dtype = model.layers[0].self_attn.k_proj.weight.dtype
         self.device = "cuda"
         assert self.model_class in [
-            "SiglipEncoder", "Mixture", "LlamaModel"
+            "SiglipEncoder", "Mixture", "LlamaModel", "BasicTransformerBlock"
         ], f"model_class: {self.model_class} is currently not supported."
         assert (
             self.model_dtype == torch.float16
@@ -41,11 +41,15 @@ class ActivationBuffer:
             self.input_dim=input_dim
         self.attn_group=attn_group
         self.llama_like=llama_like
-    def allocate_activation_buffer(self, batched_seq_len):
+    def allocate_activation_buffer(self, batched_seq_len, batched_seq_len_KV=None):
         if self.model_class == "SiglipEncoder":
             self.__allocate_activation_buffer_siglip(batched_seq_len)
         elif "mixture" in str(self.model_class).lower() or "llama" in str(self.model_class).lower():
             self.__allocate_activation_buffer_llama(batched_seq_len)
+        elif "BasicTransformerBlock" in str(self.model_class):
+            if batched_seq_len_KV is None:
+                batched_seq_len_KV=batched_seq_len
+            self.__allocate_activation_buffer_N1(batched_seq_len, batched_seq_len_KV)
         else:
             raise NotImplementedError(
                 f"model_class: {self.model_class} is currently not supported."
@@ -158,6 +162,118 @@ class ActivationBuffer:
         # For faster act-quant implementation
         self.tmp = torch.empty(
             (batched_seq_len * self.intermediate_size),
+            device=self.device,
+            dtype=torch.float16,
+        )
+    def __allocate_activation_buffer_N1(self, batched_seq_len_Q, batched_seq_len_KV):
+        # Allocate fp16 activation buffer.
+        qkv_dim=int(self.hidden_size*(1+2/self.attn_group))
+        self.act_buffer = torch.empty(
+            (batched_seq_len_Q * max(qkv_dim, self.intermediate_size)),
+            device=self.device,
+            dtype=torch.float16,
+        )
+        # self-attn
+        # q
+        self.q_proj_act_buffer = self.act_buffer[
+            : batched_seq_len_Q * self.hidden_size
+        ].view(
+            batched_seq_len_Q, self.hidden_size
+        )  
+        # k
+        self.k_proj_act_buffer = self.act_buffer[
+            : batched_seq_len_Q * self.hidden_size/self.attn_group
+        ].view(
+            batched_seq_len_Q, self.hidden_size/self.attn_group
+        )  
+        # v
+        self.v_proj_act_buffer = self.act_buffer[
+            : batched_seq_len_Q * self.hidden_size/self.attn_group
+        ].view(
+            batched_seq_len_Q, self.hidden_size/self.attn_group
+        )
+
+        self.in_out_fc2_act_buffer = self.act_buffer[
+            : batched_seq_len_Q * self.input_dim
+        ].view(
+            batched_seq_len_Q, self.input_dim
+        )  # LN1, Wo_out, LN2, all_out
+
+        self.fc1_buffer = self.act_buffer[
+            : batched_seq_len_Q * self.intermediate_size
+        ].view(batched_seq_len_Q, self.intermediate_size)
+
+        # cross-attn
+        self.cross_act_buffer = torch.empty(
+            (batched_seq_len_KV * self.hidden_size/self.attn_group *2),
+            device=self.device,
+            dtype=torch.float16,
+        )
+        # k
+        self.cross_k_proj_act_buffer = self.act_buffer[
+            : batched_seq_len_KV * self.hidden_size/self.attn_group
+        ].view(
+            batched_seq_len_KV, self.hidden_size/self.attn_group
+        )  
+        # v
+        self.cross_v_proj_act_buffer = self.act_buffer[
+            : batched_seq_len_KV * self.hidden_size/self.attn_group
+        ].view(
+            batched_seq_len_KV, self.hidden_size/self.attn_group
+        )
+        
+        # Allocate quantized activation buffer.
+        self.quantized_act_buffer = torch.empty(
+            (batched_seq_len_Q * max(self.input_dim, self.hidden_size, self.intermediate_size)),
+            device=self.device,
+            dtype=torch.int8,
+        )
+        self.quantized_hidden_states_buffer = self.quantized_act_buffer[
+            : batched_seq_len_Q * self.hidden_size
+        ].view(
+            batched_seq_len_Q, self.hidden_size
+        )  # Wo_in,
+        self.quantized_input_buffer = self.quantized_act_buffer[
+            : batched_seq_len_Q * self.input_dim
+        ].view(
+            batched_seq_len_Q, self.input_dim
+        )  # q, k, v share this buffer for self-attn; up_gate_in,
+        self.quantized_mlp_act_buffer = self.quantized_act_buffer[
+            : batched_seq_len_Q * self.intermediate_size
+        ].view(batched_seq_len_Q, self.intermediate_size)
+        
+        
+        
+        
+        # For quantized input of cross attn
+        self.corss_quantized_act_buffer = torch.empty(
+            (batched_seq_len_KV * self.hidden_size),
+            device=self.device,
+            dtype=torch.int8,
+        ).view(
+            batched_seq_len_KV, self.input_dim
+        )  # k,v share this buffer for cross attn
+
+
+        # per token
+        self.quantized_scale_buffer = torch.empty(
+            (batched_seq_len_Q), device=self.device, dtype=torch.float16
+        )
+        
+        self.cross_quantized_scale_buffer = torch.empty(
+            (batched_seq_len_KV), device=self.device, dtype=torch.float16
+        )
+
+        # For faster act-quant implementation
+        self.tmp = torch.empty(
+            (batched_seq_len_Q * self.intermediate_size),
+            device=self.device,
+            dtype=torch.float16,
+        )
+        
+        # For faster act-quant implementation
+        self.tmp_input = torch.empty(
+            (batched_seq_len_Q * self.hidden_size),
             device=self.device,
             dtype=torch.float16,
         )

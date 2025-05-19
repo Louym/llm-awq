@@ -124,7 +124,7 @@ class QuantMixtureAttention2(nn.Module):
             k=torch.cat([kv_cache_vlm[0],kv_cache_proprio[0],k],dim=-2).contiguous()
             v=torch.cat([kv_cache_vlm[1],kv_cache_proprio[1],v],dim=-2).contiguous()
         
-        attn_output=attention(q,k,v,mask,self.attn_softclamp)
+        attn_output=flash_attention(q,k,v,mask,self.attn_softclamp)
         attn_output = attn_output.reshape(bsz * seqlen, -1)
         # FP16 -> int8
         self.invoke_quant(buffer, attn_output)
@@ -330,3 +330,17 @@ def attention(q, k, v, mask=None, softcap=0):
     # Make sure the sequence length is the second dimension. # [Batch_Size, Num_Heads_Q, Full_Seq_Len, Head_Dim] -> [Batch_Size, Full_Seq_Len, Num_Heads_Q, Head_Dim]
     attn_output = attn_output.transpose(1, 2).flatten(-2,-1)
     return attn_output.contiguous()
+
+def flash_attention(q, k, v, mask=None, softcap=0):
+    q=q.transpose(1,2)
+    k=k.transpose(1,2)
+    v=v.transpose(1,2)
+    # print(mask.shape)
+    # print(mask[0,0,0,260:277])
+    k[:,mask[0,0,0]==-65504,:, :]=float("-inf")
+    # k[:,261:276,:,:]=float("-inf")
+    # q=q.transpose(1,2)
+    # k=k.transpose(1,2)
+    # v=v.transpose(1,2)
+    attn_output=flash_attn_func(q, k, v, softmax_scale=None, causal=False, softcap=softcap)
+    return attn_output.flatten(-2,-1)
