@@ -68,28 +68,28 @@ class QuantDiT(nn.Module):
             encoder_hidden_states,
             self.buffer.cross_quantized_scale_buffer,
         )
-''' 
-        rewrite this part
-        # Only replace forwarding of transformer blocks
-        for idx, block in enumerate(self.transformer_blocks):
-            if idx % 2 == 1 and self.config.interleave_self_attention:
-                hidden_states = block(
-                    hidden_states,
-                    attention_mask=None,
-                    encoder_hidden_states=None,
-                    encoder_attention_mask=None,
-                    temb=temb,
-                )
-            else:
-                hidden_states = block(
-                    hidden_states,
-                    attention_mask=None,
-                    encoder_hidden_states=encoder_hidden_states,
-                    encoder_attention_mask=None,
-                    temb=temb,
-                )
-            all_hidden_states.append(hidden_states)
-'''
+
+        # rewrite this part
+        # # Only replace forwarding of transformer blocks
+        # for idx, block in enumerate(self.transformer_blocks):
+        #     if idx % 2 == 1 and self.config.interleave_self_attention:
+        #         hidden_states = block(
+        #             hidden_states,
+        #             attention_mask=None,
+        #             encoder_hidden_states=None,
+        #             encoder_attention_mask=None,
+        #             temb=temb,
+        #         )
+        #     else:
+        #         hidden_states = block(
+        #             hidden_states,
+        #             attention_mask=None,
+        #             encoder_hidden_states=encoder_hidden_states,
+        #             encoder_attention_mask=None,
+        #             temb=temb,
+        #         )
+        #     all_hidden_states.append(hidden_states)
+
         # Output processing
         conditioning = temb
         shift, scale = self.proj_out_1(F.silu(conditioning)).chunk(2, dim=1)
@@ -126,10 +126,10 @@ class QuantBasicTransformerBlock(nn.Module):
             self.norm1 = AdaLayerNorm(dim)
         else:
             self.norm1 = nn.LayerNorm(dim, elementwise_affine=norm_elementwise_affine, eps=norm_eps)
-        ''' TODO: Write the attention block 
-        (Note: no rope, no mask, no ak norm, no softcap, you may just use attention from siglip)
-        The only thing special is k,v is derived from encoder_hidden_states and q is from hidden_states, therefore, not fuse qkv, just use three W8A8 linears
-        '''
+        # TODO: Write the attention block 
+        # (Note: no rope, no mask, no ak norm, no softcap, you may just use attention from siglip)
+        # The only thing special is k,v is derived from encoder_hidden_states and q is from hidden_states, therefore, not fuse qkv, just use three W8A8 linears
+        
         self.attn1 = Attention(
             query_dim=dim,
             heads=num_attention_heads,
@@ -143,9 +143,9 @@ class QuantBasicTransformerBlock(nn.Module):
 
         # 3. Feed-forward
         self.norm3 = nn.LayerNorm(dim, norm_eps, norm_elementwise_affine)
-        ''' TODO: Write the MLP block 
-        same as siglip
-        '''
+        # TODO: Write the MLP block 
+        # same as siglip
+
         self.ff = FeedForward(
             dim,
             dropout=dropout,
@@ -154,11 +154,11 @@ class QuantBasicTransformerBlock(nn.Module):
             inner_dim=ff_inner_dim,
             bias=ff_bias,
         )
- '''
- TODO: rewrite this forward function
- The most difficult thing may be the buffer. You need to use the buffer with 'cross' in its name for encoder_hidden_states
- For the cross attention, we quant encoder_hidden_states just once in the QuantDiT fwd, since they are same for all layers, you may just quant it for one time in the QuantDiT fwd
- '''
+
+#  TODO: rewrite this forward function
+#  The most difficult thing may be the buffer. You need to use the buffer with 'cross' in its name for encoder_hidden_states
+#  For the cross attention, we quant encoder_hidden_states just once in the QuantDiT fwd, since they are same for all layers, you may just quant it for one time in the QuantDiT fwd
+
     def forward(
         self,
         hidden_states: torch.Tensor,
