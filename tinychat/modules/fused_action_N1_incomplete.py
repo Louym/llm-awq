@@ -36,6 +36,7 @@ class QuantDiT(nn.Module):
         self.bsz = bsz
         self.qlen = qlen
         self.kvlen = kvlen
+
     def forward(
         self,
         hidden_states: torch.Tensor,  # Shape: (B, T, D)
@@ -197,6 +198,7 @@ class QuantBasicTransformerBlock(nn.Module):
         if hidden_states.ndim == 4:
             hidden_states = hidden_states.squeeze(1)
         return hidden_states
+
 class QuantAdaLayerNorm(nn.Module):
     def __init__(
         self,

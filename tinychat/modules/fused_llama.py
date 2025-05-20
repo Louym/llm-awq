@@ -31,7 +31,6 @@ class QuantLlamaModel(nn.Module):
 
         self.layers = [QuantLlamaDecoderLayer(layer) for layer in module.layers]
         self.norm = module.norm
-        self.rotary_emb = module.rotary_emb
 
         self.input_dim=module.layers[0].self_attn.q_proj.in_features
         self.hidden_size = module.layers[0].self_attn.q_proj.out_features
@@ -97,10 +96,8 @@ class QuantLlamaModel(nn.Module):
         #     attention_mask, inputs_embeds, cache_position, past_key_values, output_attentions
         # )
 
+        print(f"inputs_embeds.shape: {inputs_embeds.shape}")
         hidden_states = inputs_embeds
-
-        # create position embeddings to be shared across the decoder layers
-        position_embeddings = self.rotary_emb(hidden_states, position_ids)
 
         # decoder layers
         all_hidden_states = () if output_hidden_states else None
@@ -110,16 +107,14 @@ class QuantLlamaModel(nn.Module):
             if output_hidden_states:
                 all_hidden_states += (hidden_states,)
 
-            layer_outputs = decoder_layer(
+            hidden_states = decoder_layer(
                 hidden_states, self.buffer, self.freqs, attention_mask, past_key_values, bsz, seqlen
             )
-
-            hidden_states = layer_outputs[0]
 
             if output_attentions:
                 all_self_attns += (layer_outputs[1],)
 
-        hidden_states = self.norm(hidden_states)
+        hidden_states = self.norm(hidden_states.reshape(self.bsz, self.seqlen, -1))
 
         # add hidden states from the last decoder layer
         if output_hidden_states:
@@ -167,8 +162,9 @@ class QuantLlamaDecoderLayer(nn.Module):
         seqlen,
     ) -> Tuple[torch.FloatTensor]:
         residual = hidden_states
+
         hidden_states = self.input_layernorm(
-            hidden_states.reshape(-1, self.embed_dim),
+            hidden_states.reshape(-1, self.embed_dim).contiguous(),
             buffer.quantized_input_buffer,
             buffer.quantized_scale_buffer,
         )
@@ -180,6 +176,7 @@ class QuantLlamaDecoderLayer(nn.Module):
         hidden_states = (
             residual.reshape(-1, self.embed_dim) + buffer.in_out_fc2_act_buffer
         )
+
         # Fully Connected
         residual = hidden_states
 
@@ -188,11 +185,15 @@ class QuantLlamaDecoderLayer(nn.Module):
             buffer.quantized_input_buffer,
             buffer.quantized_scale_buffer,
         )
+
+
         # INT8 -> FP16
-        self.mlp(buffer)
+        self.mlp(buffer) 
+
         hidden_states = (
             residual.reshape(-1, self.embed_dim) + buffer.in_out_fc2_act_buffer
-        )
+        ).contiguous()
+
         return hidden_states
 
 
