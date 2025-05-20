@@ -22,11 +22,13 @@ class ActivationBuffer:
 
     def __init__(self, model, intermediate_size=None, hidden_size=None, input_dim=None, attn_group=1, llama_like=False):
         self.model_class = model.__class__.__name__
-
-        self.model_dtype = model.layers[0].self_attn.k_proj.weight.dtype
+        try:
+            self.model_dtype = model.layers[0].self_attn.k_proj.weight.dtype
+        except:
+            self.model_dtype=torch.half
         self.device = "cuda"
         assert self.model_class in [
-            "SiglipEncoder", "Mixture", "LlamaModel", "BasicTransformerBlock"
+            "SiglipEncoder", "Mixture", "LlamaModel", "DiT"
         ], f"model_class: {self.model_class} is currently not supported."
         assert (
             self.model_dtype == torch.float16
@@ -46,7 +48,7 @@ class ActivationBuffer:
             self.__allocate_activation_buffer_siglip(batched_seq_len)
         elif "mixture" in str(self.model_class).lower() or "llama" in str(self.model_class).lower():
             self.__allocate_activation_buffer_llama(batched_seq_len)
-        elif "BasicTransformerBlock" in str(self.model_class):
+        elif "DiT" in str(self.model_class):
             if batched_seq_len_KV is None:
                 batched_seq_len_KV=batched_seq_len
             self.__allocate_activation_buffer_N1(batched_seq_len, batched_seq_len_KV)
@@ -182,15 +184,15 @@ class ActivationBuffer:
         )  
         # k
         self.k_proj_act_buffer = self.act_buffer[
-            : batched_seq_len_Q * self.hidden_size/self.attn_group
+            : batched_seq_len_Q * self.hidden_size//self.attn_group
         ].view(
-            batched_seq_len_Q, self.hidden_size/self.attn_group
+            batched_seq_len_Q, self.hidden_size//self.attn_group
         )  
         # v
         self.v_proj_act_buffer = self.act_buffer[
-            : batched_seq_len_Q * self.hidden_size/self.attn_group
+            : batched_seq_len_Q * self.hidden_size//self.attn_group
         ].view(
-            batched_seq_len_Q, self.hidden_size/self.attn_group
+            batched_seq_len_Q, self.hidden_size//self.attn_group
         )
 
         self.in_out_fc2_act_buffer = self.act_buffer[
@@ -205,21 +207,21 @@ class ActivationBuffer:
 
         # cross-attn
         self.cross_act_buffer = torch.empty(
-            (batched_seq_len_KV * self.hidden_size/self.attn_group *2),
+            (batched_seq_len_KV * self.hidden_size//self.attn_group *2),
             device=self.device,
             dtype=torch.float16,
         )
         # k
-        self.cross_k_proj_act_buffer = self.act_buffer[
-            : batched_seq_len_KV * self.hidden_size/self.attn_group
+        self.cross_k_proj_act_buffer = self.cross_act_buffer[
+            : batched_seq_len_KV * self.hidden_size//self.attn_group
         ].view(
-            batched_seq_len_KV, self.hidden_size/self.attn_group
+            batched_seq_len_KV, self.hidden_size//self.attn_group
         )  
         # v
-        self.cross_v_proj_act_buffer = self.act_buffer[
-            : batched_seq_len_KV * self.hidden_size/self.attn_group
+        self.cross_v_proj_act_buffer = self.cross_act_buffer[
+            : batched_seq_len_KV * self.hidden_size//self.attn_group
         ].view(
-            batched_seq_len_KV, self.hidden_size/self.attn_group
+            batched_seq_len_KV, self.hidden_size//self.attn_group
         )
         
         # Allocate quantized activation buffer.
