@@ -187,11 +187,10 @@ class QuantDiT(nn.Module):
         temb = self.timestep_encoder(timestep)
 
         # Process through transformer blocks - single pass through the blocks
-        hidden_states = hidden_states.contiguous()
+        hidden_states = hidden_states.half().contiguous()
         encoder_hidden_states = encoder_hidden_states.contiguous()
 
         all_hidden_states = [hidden_states]
-        
         
         # buffer allocation:
         bsz, qlen, _ =hidden_states.shape
@@ -204,7 +203,7 @@ class QuantDiT(nn.Module):
         # Quantize encoder_hidden_states
         awq_inference_engine.invoke_quant(
             self.buffer.corss_quantized_act_buffer,
-            encoder_hidden_states,
+            encoder_hidden_states.half(),
             self.buffer.cross_quantized_scale_buffer,
         )
         # Only replace forwarding of transformer blocks
@@ -253,7 +252,7 @@ class QuantBasicTransformerBlock(nn.Module):
         else:
             raise NotImplementedError(f"Norm type {self.norm_type} not implemented")
         
-        self.attn1 = QuantQKVSplitFlashAttention2(module.attn1, cross_attn)
+        self.attn1 = QuantQKVSplitFlashAttention2(module.attn1, cross_attn=cross_attn)
 
         # 3. Feed-forward
         self.layer_norm3 = LayerNormGeneral(

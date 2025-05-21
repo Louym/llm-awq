@@ -57,7 +57,7 @@ class QuantSiglipEncoder(nn.Module):
 
         encoder_states = () if output_hidden_states else None
 
-        hidden_states = inputs_embeds
+        hidden_states = inputs_embeds.half()
         for i, encoder_layer in enumerate(self.layers):
             if output_hidden_states:
                 encoder_states = encoder_states + (
@@ -243,8 +243,8 @@ class LayerNormGeneral(nn.Module):
         use_per_token_quant: bool = True,
     ) -> None:
         super().__init__()
-        self.weight = nn.Parameter(weight, requires_grad=False)
-        self.bias = nn.Parameter(bias, requires_grad=False)
+        self.weight = nn.Parameter(weight.half(), requires_grad=False)
+        self.bias = nn.Parameter(bias.half(), requires_grad=False)
         self.variance_epsilon = eps
         self.use_per_token_quant = use_per_token_quant
 
@@ -256,7 +256,6 @@ class LayerNormGeneral(nn.Module):
         quantized_sum_buffer: torch.Tensor = None,
     ) -> torch.Tensor:
         # quantized_sum_buffer is not used, only to keep the consistency of the interface
-        
         awq_inference_engine.layer_norm_general(
             quantized_hidden_states_buffer,
             x,

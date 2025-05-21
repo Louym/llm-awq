@@ -219,7 +219,7 @@ class ActivationBuffer:
         )  
         # v
         self.cross_v_proj_act_buffer = self.cross_act_buffer[
-            : batched_seq_len_KV * self.hidden_size//self.attn_group
+            batched_seq_len_KV * self.hidden_size//self.attn_group: 
         ].view(
             batched_seq_len_KV, self.hidden_size//self.attn_group
         )
