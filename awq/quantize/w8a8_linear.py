@@ -200,7 +200,7 @@ class W8A8OF16LinearDynamicInputScale(W8A8OF16LinearStaticScale):
             bias is not None,
         )
         if init_only:  # just prepare for loading sd
-            return q_linear
+            return q_linear.cuda()
         if s1_scale is None:
             s1_scale, _ = torch.max(abs(weight), dim=-1, keepdim=True)
             s1_scale = s1_scale.clamp_(min=1e-5).div_(127)

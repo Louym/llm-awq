@@ -22,7 +22,7 @@ class TimestepEncoder(nn.Module):
     def __init__(self, embedding_dim, compute_dtype=torch.float32):
         super().__init__()
         self.time_proj = Timesteps(num_channels=256, flip_sin_to_cos=True, downscale_freq_shift=1)
-        self.timestep_embedder = TimestepEmbedding(in_channels=256, time_embed_dim=embedding_dim)
+        self.timestep_embedder = TimestepEmbedding(in_channels=256, time_embed_dim=embedding_dim).cuda().half()
 
     def forward(self, timesteps):
         dtype = next(self.parameters()).dtype
@@ -393,8 +393,8 @@ class CategorySpecificLinear(nn.Module):
         super().__init__()
         self.num_categories = num_categories
         # For each category, we have separate weights and biases.
-        self.W = nn.Parameter(0.02 * torch.randn(num_categories, input_dim, hidden_dim))
-        self.b = nn.Parameter(torch.zeros(num_categories, hidden_dim))
+        self.W = nn.Parameter(0.02 * torch.randn(num_categories, input_dim, hidden_dim)).cuda().half()
+        self.b = nn.Parameter(torch.zeros(num_categories, hidden_dim)).cuda().half()
 
     def forward(self, x, cat_ids):
         selected_W = self.W[cat_ids]
@@ -536,7 +536,7 @@ class FlowmatchingActionHead(nn.Module):
             output_dim=self.action_dim,
         )
         if config.add_pos_embed:
-            self.position_embedding = nn.Embedding(config.max_seq_len, self.input_embedding_dim)
+            self.position_embedding = nn.Embedding(config.max_seq_len, self.input_embedding_dim).cuda().half()
             nn.init.normal_(self.position_embedding.weight, mean=0.0, std=0.02)
         self.beta_dist = Beta(config.noise_beta_alpha, config.noise_beta_beta)
         self.num_timestep_buckets = config.num_timestep_buckets
@@ -750,7 +750,7 @@ if __name__ == "__main__":
     backbone_outputs = BatchFeature(data={
         'backbone_features': torch.randn(1, 93, 1536, dtype=torch.float16),
         'backbone_attention_mask': torch.ones(1, 93, dtype=torch.int64)
-    })
+    }).to("cuda")
 
     action_inputs = BatchFeature(data={
         'state': torch.randn(1, 1, 64, dtype=torch.float16),
@@ -759,11 +759,11 @@ if __name__ == "__main__":
         'pixel_values': torch.randn(1, 3, 224, 224, dtype=torch.float16),
         'input_ids': torch.ones(1, 93, dtype=torch.int64),
         'attention_mask': torch.ones(1, 93, dtype=torch.int64)
-    })
+    }).to("cuda")
 
     action_inputs.state_mask[0, 0, -12:] = False
 
-    from tinychat.modules.fused_action_N1_incomplete import QuantDiT
+    from tinychat.modules.fused_action_N1 import QuantDiT
     action_head.model = QuantDiT(action_head.model)
 
     action_head = action_head.to(torch.float16)

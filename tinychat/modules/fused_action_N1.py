@@ -166,9 +166,9 @@ class QuantDiT(nn.Module):
         self.transformer_blocks = [QuantBasicTransformerBlock(layer, index%2==0) for index, layer in enumerate(module.transformer_blocks)]
 
         # Output blocks
-        self.norm_out = module.norm_out
-        self.proj_out_1 = module.proj_out_1
-        self.proj_out_2 = module.proj_out_2
+        self.norm_out = module.norm_out.cuda()
+        self.proj_out_1 = module.proj_out_1.cuda()
+        self.proj_out_2 = module.proj_out_2.cuda()
         self.bsz = bsz
         self.qlen = qlen
         self.kvlen = kvlen
@@ -248,7 +248,7 @@ class QuantBasicTransformerBlock(nn.Module):
         # Define 3 blocks. Each block has its own normalization layer.
         # 1. Self-Attn
         if self.norm_type == "ada_norm":
-            self.norm1=module.norm1.half()
+            self.norm1=module.norm1.half().cuda()
             # self.norm1 = QuantAdaLayerNorm(module.norm1)
         else:
             raise NotImplementedError(f"Norm type {self.norm_type} not implemented")
